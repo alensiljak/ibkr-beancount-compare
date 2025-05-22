@@ -6,10 +6,11 @@ Rewrite of the ledger_runner
 import logging
 import shlex
 import subprocess
-from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import list, Optional
+from typing import Optional
+
+from model import CommonTransaction
 
 # Basic logging configuration
 logging.basicConfig(
@@ -20,30 +21,6 @@ logging.basicConfig(
 # These were also present in the compare.rs translation.
 TRANSACTION_DAYS: int = 60
 ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
-
-
-# --- Model (equivalent to model::CommonTransaction) ---
-# This would typically be in a separate models.py file for a larger project.
-# Ensure this definition is consistent with its use in other Python modules (e.g., compare.py).
-@dataclass
-class CommonTransaction:
-    date: date  # Effective/transaction date
-    report_date: (
-        str  # For ledger, this might be the same as date or derived. "YYYY-MM-DD"
-    )
-    symbol: str
-    type: str  # Descriptive type like "Dividend", "Withholding Tax"
-    amount: Decimal
-    currency: str
-    description: str
-
-    def __str__(self) -> str:
-        """Formats the transaction for output."""
-        return (
-            f"{self.report_date}/{self.date.strftime(ISO_DATE_FORMAT_STR)} "
-            f"{self.symbol:<8} {self.type:<15} {self.amount:>10.2f} "
-            f"{self.currency}, {self.description}"
-        )
 
 
 # --- Parser Stubs ---
@@ -193,7 +170,7 @@ def get_ledger_tx_py(
     ledger_journal_file: Optional[str],
     start_date_str: str,
     use_effective_dates: bool,
-) -> List[CommonTransaction]:
+) -> list[CommonTransaction]:
     """
     Get ledger transactions by running ledger-cli and parsing its output.
     Equivalent to Rust's get_ledger_tx.
@@ -262,7 +239,7 @@ def get_ledger_tx_py(
     return transactions
 
 
-def run_ledger_py(args: List[str]) -> List[str]:
+def run_ledger_py(args: list[str]) -> list[str]:
     """
     Runs Ledger with the given pre-split arguments and returns the output lines.
     Equivalent to Rust's `run_ledger` function (which was marked #[allow(unused)] but used in tests).
@@ -399,8 +376,8 @@ if __name__ == "__main__":
     _original_get_rows = LedgerRegOutputParser.get_rows_from_register
 
     def mock_get_rows_from_register(
-        cleaned_lines: List[str],
-    ) -> List[CommonTransaction]:
+        cleaned_lines: list[str],
+    ) -> list[CommonTransaction]:
         print(f"Mock get_rows_from_register called with {len(cleaned_lines)} lines.")
         if any("Income:Broker:Dividends" in line for line in cleaned_lines):
             return [
