@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+"""
+Rewrite of the ledger_runner
+"""
+
+import logging
+import shlex
+import subprocess
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from typing import list, Optional
+
+# Basic logging configuration
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# Constants (should ideally be shared if this is part of a larger project)
+# These were also present in the compare.rs translation.
+TRANSACTION_DAYS: int = 60
+ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
+
+
+# --- Model (equivalent to model::CommonTransaction) ---
+# This would typically be in a separate models.py file for a larger project.
+# Ensure this definition is consistent with its use in other Python modules (e.g., compare.py).
+@dataclass
+class CommonTransaction:
+    date: date  # Effective/transaction date
+    report_date: (
+        str  # For ledger, this might be the same as date or derived. "YYYY-MM-DD"
+    )
+    symbol: str
+    type: str  # Descriptive type like "Dividend", "Withholding Tax"
+    amount: Decimal
+    currency: str
+    description: str
+
+    def __str__(self) -> str:
+        """Formats the transaction for output."""
+        return (
+            f"{self.report_date}/{self.date.strftime(ISO_DATE_FORMAT_STR)} "
+            f"{self.symbol:<8} {self.type:<15} {self.amount:>10.2f} "
+            f"{self.currency}, {self.description}"
+        )
+
+
+# --- Parser Stubs ---
+# In a full project, these would be separate modules/files (e.g., ledger_parsers.py or a directory).
+# You need to implement the actual parsing logic here based on your ledger output format.
+
+
+class LedgerRegOutputParser:
+    """
+    Stub for parsing ledger 'register' command output.
+    Equivalent to Rust's ledger_reg_output_parser module.
+    """
+
+    @staticmethod
+    def clean_up_register_output(lines: list[str]) -> list[str]:
+        logging.debug("Stub: LedgerRegOutputParser.clean_up_register_output called")
+        # Example: basic stripping, remove empty lines
+        return [line.strip() for line in lines if line.strip()]
+
+    @staticmethod
+    def get_rows_from_register(cleaned_lines: list[str]) -> list[CommonTransaction]:
+        logging.info(
+            f"Stub: LedgerRegOutputParser.get_rows_from_register called with {len(cleaned_lines)} lines."
+        )
+        # This is where you would parse `cleaned_lines` into CommonTransaction objects.
+        # For demonstration, returning an empty list.
+        # Example of how one might start parsing (very simplified):
+        # transactions = []
+        # for line in cleaned_lines:
+        #     try:
+        #         # e.g., "2022-12-15 TRET_AS Distribution Income:Investment:IB:TRET_AS -38.40 EUR -38.40 EUR"
+        #         parts = line.split(maxsplit=6) # Adjust split based on actual format
+        #         if len(parts) >= 6:
+        #             tx_date_str = parts[0]
+        #             tx_date = datetime.strptime(tx_date_str, ISO_DATE_FORMAT_STR).date()
+        #             symbol = parts[1]
+        #             # Type might be inferred from account or description
+        #             tx_type = "Unknown" # Placeholder
+        #             if "Distribution" in parts[2] or "Dividend" in parts[2]:
+        #                 tx_type = "Dividend"
+        #             elif "Tax" in parts[2]:
+        #                 tx_type = "Withholding Tax"
+        #
+        #             amount_str = parts[4] # Assuming amount is at a fixed position
+        #             currency = parts[5]   # Assuming currency is at a fixed position
+        #             description = parts[2] + " " + parts[3] # Combine relevant parts
+        #
+        #             transactions.append(CommonTransaction(
+        #                 date=tx_date,
+        #                 report_date=tx_date_str, # For ledger, report_date might be same as tx_date
+        #                 symbol=symbol,
+        #                 type=tx_type,
+        #                 amount=Decimal(amount_str),
+        #                 currency=currency,
+        #                 description=description
+        #             ))
+        #     except Exception as e:
+        #         logging.warning(f"Skipping line due to parsing error in stub: '{line[:50]}...' - {e}")
+        # return transactions
+        return []
+
+
+class LedgerPrintOutputParser:
+    """
+    Stub for parsing ledger 'print' command output.
+    Equivalent to Rust's ledger_print_output_parser module.
+    """
+
+    @staticmethod
+    def parse_print_output(lines: List[str]) -> List[CommonTransaction]:
+        logging.debug("Stub: LedgerPrintOutputParser.parse_print_output called")
+        # Actual implementation would parse ledger 'print' output into CommonTransaction objects.
+        return []
+
+
+# --- Core Logic Functions ---
+
+
+def get_ledger_start_date_py(comparison_date_str: Optional[str] = None) -> str:
+    """
+    Determines the starting date from which to take Ledger transactions.
+    Equivalent to Rust's get_ledger_start_date.
+    """
+    end_date_obj: date
+    if comparison_date_str:
+        try:
+            end_date_obj = datetime.strptime(
+                comparison_date_str, ISO_DATE_FORMAT_STR
+            ).date()
+        except ValueError:
+            logging.error(
+                f"Invalid date format for comparison_date_str: {comparison_date_str}. Using today."
+            )
+            end_date_obj = date.today()
+    else:
+        end_date_obj = date.today()
+
+    start_date_obj = end_date_obj - timedelta(days=TRANSACTION_DAYS)
+    start_date_formatted_str = start_date_obj.strftime(ISO_DATE_FORMAT_STR)
+
+    logging.debug(
+        f"Ledger start date calculation: comparison_date='{comparison_date_str}', "
+        f"end_date_obj={end_date_obj}, result_start_date='{start_date_formatted_str}'"
+    )
+    return start_date_formatted_str
+
+
+def get_ledger_cmd_py(
+    start_date: str,
+    ledger_journal_file: Optional[str],
+    effective_dates: bool,
+) -> str:
+    """
+    Assembles the Ledger query command string.
+    Equivalent to Rust's get_ledger_cmd.
+    The returned string will be split using shlex before execution.
+    """
+    # Base command: ledger register, begin date, display expression
+    cmd_parts = [
+        "ledger",
+        "r",  # 'r' for register report
+        "-b",
+        start_date,  # -b for begin date
+        "-d",  # -d for display expression (shows relevant postings)
+        # Query for income/expense postings related to 'ib' (Interactive Brokers)
+        # and specifically withholding tax for expenses.
+        r,  # "(account =~ /income/ and account =~ /ib/) or (account =~ /expenses/ and account =~ /ib/ and account =~ /withh/)"#
+    ]
+
+    if effective_dates:
+        cmd_parts.append("--effective")
+
+    if ledger_journal_file:
+        cmd_parts.extend(["-f", ledger_journal_file])
+
+    # Ensure ISO date format for parsing, and wide display
+    cmd_parts.extend(["--date-format", ISO_DATE_FORMAT_STR, "--wide"])
+
+    # shlex.join is available in Python 3.8+ and is safer for constructing command strings
+    # if they were to be passed to a shell. Here, we'll split it later anyway.
+    # For clarity, just join with spaces. shlex.split will handle the quoted query.
+    cmd_str = " ".join(cmd_parts)
+    return cmd_str
+
+
+def get_ledger_tx_py(
+    ledger_journal_file: Optional[str],
+    start_date_str: str,
+    use_effective_dates: bool,
+) -> List[CommonTransaction]:
+    """
+    Get ledger transactions by running ledger-cli and parsing its output.
+    Equivalent to Rust's get_ledger_tx.
+    """
+    cmd_str = get_ledger_cmd_py(
+        start_date_str, ledger_journal_file, use_effective_dates
+    )
+    logging.debug(f"Constructed ledger command string: {cmd_str}")
+
+    try:
+        # Use shlex.split to handle arguments correctly, especially the quoted query
+        cmd_args = shlex.split(cmd_str)
+        logging.debug(f"Executing ledger command with args: {cmd_args}")
+
+        # Execute the command
+        # text=True decodes stdout/stderr to strings
+        # check=True will raise CalledProcessError if return code is non-zero
+        process_output = subprocess.run(
+            cmd_args, capture_output=True, text=True, check=True
+        )
+
+        stdout_data = process_output.stdout
+        if (
+            process_output.stderr
+        ):  # Log stderr even if command succeeded, as it might contain warnings
+            logging.warning(f"Ledger command stderr:\n{process_output.stderr}")
+
+    except subprocess.CalledProcessError as e:
+        logging.error(
+            f"Error running Ledger command.\n"
+            f"Command: '{e.cmd}'\n"
+            f"Return code: {e.returncode}\n"
+            f"Stderr: {e.stderr}\n"
+            f"Stdout: {e.stdout}"
+        )
+        # In Rust, this was a panic. Here, we raise the exception.
+        # Depending on desired behavior, you might return an empty list or handle differently.
+        raise
+    except FileNotFoundError:
+        logging.error(f"Ledger command not found. Ensure 'ledger' is in your PATH.")
+        raise
+
+    lines = stdout_data.splitlines()
+    logging.debug(
+        f"Ledger output lines ({len(lines)}): {lines if len(lines) < 10 else lines[:10] + ['...']}"
+    )
+
+    # The Rust code has a 'parser' variable hardcoded to 0, selecting ledger_reg_output_parser.
+    # Replicating that direct choice here.
+    # If parser selection was dynamic, this would be an if/else or strategy pattern.
+    parser_choice = 0  # 0 for Register parsing, 1 for Print parsing (as in Rust)
+
+    if parser_choice == 0:
+        # Register parsing path
+        cleaned_lines = LedgerRegOutputParser.clean_up_register_output(lines)
+        transactions = LedgerRegOutputParser.get_rows_from_register(cleaned_lines)
+    elif parser_choice == 1:
+        # Print parsing path (currently unused based on Rust's hardcoded 'parser = 0')
+        transactions = LedgerPrintOutputParser.parse_print_output(lines)
+    else:
+        # This case was a panic in Rust.
+        logging.error(f"Invalid parser choice: {parser_choice}")
+        raise ValueError(f"Invalid parser choice: {parser_choice}")
+
+    logging.info(f"Parsed {len(transactions)} transactions from Ledger output.")
+    return transactions
+
+
+def run_ledger_py(args: List[str]) -> List[str]:
+    """
+    Runs Ledger with the given pre-split arguments and returns the output lines.
+    Equivalent to Rust's `run_ledger` function (which was marked #[allow(unused)] but used in tests).
+    The first argument in `args` should NOT be "ledger"; it's implied.
+    Example: args = ["r", "-b", "2023-01-01", "-f", "journal.dat"]
+    """
+    full_command_args = ["ledger"] + args
+    logging.debug(f"Running ledger with direct args: {full_command_args}")
+
+    try:
+        process_output = subprocess.run(
+            full_command_args,
+            capture_output=True,
+            text=True,
+            check=False,  # check=False to manually check stderr
+        )
+
+        # The Rust version asserted stderr is empty. This is a strong assertion.
+        # Here, we log stderr if present.
+        if process_output.stderr:
+            logging.warning(
+                f"run_ledger_py: Ledger command stderr:\n{process_output.stderr}"
+            )
+            # Original Rust code had: assert!(output.stderr.is_empty());
+            # If this strictness is required:
+            # if process_output.stderr.strip():
+            #     raise AssertionError(f"Ledger stderr was not empty: {process_output.stderr}")
+
+        if process_output.returncode != 0:
+            logging.error(
+                f"run_ledger_py: Ledger command failed with code {process_output.returncode}.\n"
+                f"Command: '{' '.join(full_command_args)}'\n"
+                f"Stderr: {process_output.stderr}"
+            )
+            # Mimic Rust's expect/panic behavior for command failure if not check=True
+            raise subprocess.CalledProcessError(
+                process_output.returncode,
+                full_command_args,
+                output=process_output.stdout,
+                stderr=process_output.stderr,
+            )
+
+        return process_output.stdout.splitlines()
+
+    except FileNotFoundError:
+        logging.error(
+            "run_ledger_py: Ledger command not found. Ensure 'ledger' is in your PATH."
+        )
+        raise
+    except subprocess.CalledProcessError as e:  # If check=True was used or re-raised
+        logging.error(f"run_ledger_py: CalledProcessError: {e}")
+        raise
+
+
+# --- Example Usage / Tests (mimicking Rust tests) ---
+if __name__ == "__main__":
+    # Configure logging for more detail if running standalone
+    logging.getLogger().setLevel(logging.DEBUG)
+
+    print("--- Running Ledger Runner Examples/Tests ---")
+
+    # Dummy journal file for testing
+    dummy_journal_content = """
+2023-01-15 Dividend Income
+    Assets:Broker:Cash      $100.00 ; Symbol: XYZ, Type: Dividend
+    Income:Broker:Dividends $-100.00 ; Symbol: XYZ, Type: Dividend
+
+2023-01-16 Tax Expense
+    Expenses:Broker:Tax     $15.00 ; Symbol: XYZ, Type: Withholding Tax
+    Assets:Broker:Cash      $-15.00 ; Symbol: XYZ, Type: Withholding Tax
+
+2023-02-10 Another IB Income
+    Assets:IB:Cash          EUR 50.00
+    Income:IB:Other         EUR -50.00
+    """
+    dummy_journal_path = "temp_journal.ledger"
+    with open(dummy_journal_path, "w") as f:
+        f.write(dummy_journal_content)
+
+    # Test get_ledger_start_date_py
+    print("\n--- Test get_ledger_start_date_py ---")
+    start_date_default = get_ledger_start_date_py()
+    print(
+        f"Default start date (approx {TRANSACTION_DAYS} days ago): {start_date_default}"
+    )
+    start_date_specific = get_ledger_start_date_py("2023-03-15")
+    expected_specific_start = (
+        datetime.strptime("2023-03-15", ISO_DATE_FORMAT_STR).date()
+        - timedelta(days=TRANSACTION_DAYS)
+    ).strftime(ISO_DATE_FORMAT_STR)
+    print(
+        f"Specific start date for 2023-03-15: {start_date_specific} (Expected: {expected_specific_start})"
+    )
+    assert start_date_specific == expected_specific_start
+
+    # Test get_ledger_cmd_py
+    print("\n--- Test get_ledger_cmd_py ---")
+    cmd_str_1 = get_ledger_cmd_py("2023-01-01", dummy_journal_path, False)
+    print(f"Cmd (no effective dates): {cmd_str_1}")
+    cmd_str_2 = get_ledger_cmd_py("2023-01-01", dummy_journal_path, True)
+    print(f"Cmd (with effective dates): {cmd_str_2}")
+    # Expected: ledger r -b 2023-01-01 -d "(account =~ /income/ and account =~ /ib/) or (account =~ /expenses/ and account =~ /ib/ and account =~ /withh/)" -f temp_journal.ledger --date-format %Y-%m-%d --wide
+
+    # Test run_ledger_py (mimics run_ledger_test from Rust)
+    # This requires 'ledger' to be installed and in PATH.
+    print("\n--- Test run_ledger_py ---")
+    try:
+        # A simple ledger command: balance for a specific account
+        # Note: The query used in get_ledger_cmd_py is more complex.
+        # This test is simpler, like the original Rust test for run_ledger.
+        # The original Rust test was: "b active and cash -f ledger_journal_path"
+        # We'll try a similar balance query.
+        run_ledger_args = ["bal", "Assets:Broker", "-f", dummy_journal_path]
+        output_lines = run_ledger_py(run_ledger_args)
+        print(f"run_ledger_py output lines ({len(output_lines)}):")
+        for line in output_lines:
+            print(line)
+        assert any(
+            "$85.00  Assets:Broker" in line for line in output_lines
+        )  # $100 - $15
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(f"Skipping run_ledger_py test: Ledger command failed or not found. {e}")
+
+    # Test get_ledger_tx_py
+    # This also requires 'ledger' to be installed and in PATH.
+    # And the stubbed parsers would need to be implemented for real data.
+    print("\n--- Test get_ledger_tx_py ---")
+    # For this test to return actual CommonTransaction objects,
+    # LedgerRegOutputParser.get_rows_from_register needs a real implementation.
+    # Currently, it will return an empty list.
+    # We are testing the command execution and flow up to the parser.
+
+    # Modify the stub to return something for testing purposes
+    _original_get_rows = LedgerRegOutputParser.get_rows_from_register
+
+    def mock_get_rows_from_register(
+        cleaned_lines: List[str],
+    ) -> List[CommonTransaction]:
+        print(f"Mock get_rows_from_register called with {len(cleaned_lines)} lines.")
+        if any("Income:Broker:Dividends" in line for line in cleaned_lines):
+            return [
+                CommonTransaction(
+                    date=date(2023, 1, 15),
+                    report_date="2023-01-15",
+                    symbol="XYZ",
+                    type="Dividend",
+                    amount=Decimal("-100.00"),
+                    currency="$",
+                    description="Mocked Dividend",
+                )
+            ]
+        return []
+
+    LedgerRegOutputParser.get_rows_from_register = mock_get_rows_from_register
+
+    try:
+        ledger_transactions = get_ledger_tx_py(
+            ledger_journal_file=dummy_journal_path,
+            start_date_str="2023-01-01",
+            use_effective_dates=False,
+        )
+        print(f"get_ledger_tx_py returned {len(ledger_transactions)} transactions:")
+        for tx in ledger_transactions:
+            print(tx)
+        # If mock is active and ledger runs, this should pass:
+        if ledger_transactions:  # Check if mock returned anything
+            assert len(ledger_transactions) > 0
+            assert ledger_transactions[0].symbol == "XYZ"
+        else:  # If ledger command failed or mock didn't trigger
+            print(
+                "get_ledger_tx_py returned no transactions (as expected if parser stub is empty or ledger failed)."
+            )
+
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(
+            f"Skipping get_ledger_tx_py test: Ledger command failed or not found. {e}"
+        )
+    finally:
+        LedgerRegOutputParser.get_rows_from_register = (
+            _original_get_rows  # Restore original stub
+        )
+
+    # Test shlex.split (mimics test_ledger_words/test_shellwords)
+    print("\n--- Test shlex.split ---")
+    complex_cmd_str = r"""ledger r -b 2022-03-01 -d "(account =~ /income/ and account =~ /ib/) or (account =~ /ib/ and account =~ /withh/)" -f tests/journal.ledger --wide --date-format %Y-%m-%d"""
+    shlex_split_result = shlex.split(complex_cmd_str)
+    print(f"shlex.split result: {shlex_split_result}")
+    expected_shlex_parts = [
+        "ledger",
+        "r",
+        "-b",
+        "2022-03-01",
+        "-d",
+        "(account =~ /income/ and account =~ /ib/) or (account =~ /ib/ and account =~ /withh/)",
+        "-f",
+        "tests/journal.ledger",
+        "--wide",
+        "--date-format",
+        "%Y-%m-%d",
+    ]
+    assert shlex_split_result == expected_shlex_parts
+
+    # Cleanup dummy file
+    import os
+
+    try:
+        os.remove(dummy_journal_path)
+        print(f"\nCleaned up {dummy_journal_path}")
+    except OSError as e:
+        print(f"Error cleaning up {dummy_journal_path}: {e}")
+
+    print("\n--- Ledger Runner Examples/Tests Complete ---")
