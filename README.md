@@ -1,2 +1,5 @@
-# ib-flex-beancount-compare
-A tool for comparing the IB Flex reports and the Ledger/Beancount book
+# ibkr-beancount-compare
+Compare the IBKR Flex reports to a Ledger/Beancount book
+
+A rewrite of [ibkr-flex-rs](https://github.com/alensiljak/interactive-brokers-flex-rs).
+This tool should support both Ledger and Beancount and help with the transition.
