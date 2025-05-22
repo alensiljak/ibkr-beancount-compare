@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 from loguru import logger
+from pydantic import ValidationError
 
 from model import (
     CommonTransaction,
@@ -89,14 +90,28 @@ def main():
 # --- Enums and Helper Functions (equivalent to flex_enums) ---
 def get_cash_action_string(ib_action_code: str) -> str:
     """Maps IB action codes to descriptive strings."""
-    if ib_action_code == "DIV":
+    if ib_action_code == "Deposits/Withdrawals":
+        return "DepositWithdraw"
+    if ib_action_code == "Broker Interest Paid":
+        return "BrokerIntPaid"
+    if ib_action_code == "Broker Interest Received":
+        return "BrokerIntRcvd"
+    if ib_action_code == "Withholding Tax":
+        return "WhTax"
+    if ib_action_code == "Bond Interest Received":
+        return "BondIntRcvd"
+    if ib_action_code == "Bond Interest Paid":
+        return "BondIntPaid"
+    if ib_action_code == "Other Fees":
+        return "Fees"
+    if ib_action_code == "Dividends":
         return "Dividend"
-    elif ib_action_code == "WHTAX":
-        return "Withholding Tax"
-    elif ib_action_code == "LIEU":
+    if ib_action_code == "Payment In Lieu Of Dividends":
         return "PaymentInLieu"
-    # Add other mappings if they exist in the original flex_enums::cash_action
-    return ib_action_code  # For "Other" types or unmapped
+    if ib_action_code == "Commission Adjustments":
+        return "CommAdj"
+
+    raise ValueError("Unrecognized cash action type: %s", ib_action_code)
 
 
 # --- Stub/Helper functions for external dependencies ---
@@ -173,20 +188,35 @@ def get_ledger_tx_py(
 
 
 def read_symbols_py(path: Path) -> list[SymbolMetadata]:
-    """
-    Stub for as_symbols::read_symbols.
-    Reads symbol metadata from a file (e.g., CSV).
-    """
-    logger.debug(f"Stub: Called read_symbols_py for path: {path}")
-    # Example: Return dummy data for testing
-    # This should parse a file like 'tests/symbols.csv'
-    # if "symbols.csv" in str(path):
-    #     return [
-    #         SymbolMetadata(symbol="BRK.B", ib_symbol="BRK/B", ledger_symbol="BRK-B"),
-    #         SymbolMetadata(symbol="MSFT", namespace="NASDAQ", ledger_symbol="MSFT"),
-    #         SymbolMetadata(symbol="VBAL.TO", ib_symbol="VBAL", ledger_symbol="VBAL")
-    #     ]
-    return []
+    """Reads a CSV file and returns a list of lists."""
+    # Ensure this import is here or at the top of the file
+    import csv
+
+    data = []
+    try:
+        with open(path, "r", newline="", encoding="utf-8") as csvfile:
+            # Use DictReader to read rows as dictionaries
+            reader = csv.DictReader(csvfile)
+            if reader.fieldnames:
+                logger.debug(f"Symbols CSV field names: {reader.fieldnames}")
+            else:  # Should not happen with a valid CSV, but good to check
+                logger.warning(
+                    f"Symbols CSV at {path} appears to be empty or has no header."
+                )
+                return []
+
+            for row_dict in reader:
+                try:
+                    metadata_instance = SymbolMetadata(**row_dict)
+                    data.append(metadata_instance)
+                except ValidationError as ve:
+                    logger.warning(
+                        f"Skipping invalid row in symbols CSV {path}: {row_dict}. Error: {ve}"
+                    )
+    except FileNotFoundError:
+        logger.error(f"Error: Symbols file not found at {path}")
+        return []
+    return data
 
 
 # --- Core Logic Functions ---
@@ -270,7 +300,7 @@ def convert_ib_txs_into_common_py(
     common_txs: list[CommonTransaction] = []
 
     # Transaction types to include in the comparison
-    to_include_types = ["Dividend", "Withholding Tax", "PaymentInLieu"]
+    to_include_types = ["Dividend", "WhTax", "PaymentInLieu"]
     logger.debug(f"Will include transaction types: {to_include_types}")
 
     for ib_tx in ib_tx_list:
@@ -322,7 +352,7 @@ def read_flex_report_py(params: CompareParams) -> list[IbCashTransaction]:
 
 def get_ib_tx_py(params: CompareParams) -> list[CommonTransaction]:
     """
-    Gets IB transactions from the Flex report and converts them to 
+    Gets IB transactions from the Flex report and converts them to
     CommonTransactions, for comparison.
     symbols is a HashMap of symbol rewrites.
     """

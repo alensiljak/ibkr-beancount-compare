@@ -14,16 +14,6 @@ ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
 
 
 @dataclass
-class SymbolMetadata:
-    """Equivalent to as_symbols::SymbolMetadata"""
-
-    symbol: str
-    namespace: Optional[str] = None
-    ib_symbol: Optional[str] = None
-    ledger_symbol: Optional[str] = None
-
-
-@dataclass
 class IbCashTransaction:
     """Represents a CashTransaction from the IB Flex Report XML."""
 
@@ -152,3 +142,24 @@ class CompareParams:
     ledger_journal_file: Optional[str]
     symbols_path: str
     effective_dates: bool
+
+@dataclass
+class SymbolMetadata:
+    """Equivalent to as_symbols::SymbolMetadata"""
+
+    # Exchange
+    namespace: Optional[str]
+    # Symbol at the exchange
+    symbol: str
+    # The currency used to express the symbol's price.
+    currency: Optional[str]
+    # The name of the price update provider.
+    updater: Optional[str]
+    # The symbol, as used by the updater.
+    updater_symbol: Optional[str]
+    # The symbol, as used in the Ledger journal.
+    ledger_symbol: Optional[str]
+    # The symbol, as used at Interactive Brokers.
+    ib_symbol: Optional[str]
+    # Remarks
+    remarks: Optional[str]
