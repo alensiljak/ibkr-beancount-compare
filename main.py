@@ -258,7 +258,7 @@ def convert_ib_txs_into_common_py(
     try:
         symbols_map = load_symbols_py(symbols_path_str)  # <ib_symbol, ledger_symbol>
     except FileNotFoundError:
-        logging.warning(
+        logger.warning(
             f"Symbols file not found at {symbols_path_str}. Proceeding without symbol mapping."
         )
         symbols_map = {}
@@ -271,17 +271,17 @@ def convert_ib_txs_into_common_py(
 
     # Transaction types to include in the comparison
     to_include_types = ["Dividend", "Withholding Tax", "PaymentInLieu"]
-    logging.debug(f"Will include transaction types: {to_include_types}")
+    logger.debug(f"Will include transaction types: {to_include_types}")
 
     for ib_tx in ib_tx_list:
         common_tx = ib_cash_transaction_to_common(ib_tx)
 
-        logging.debug(
+        logger.debug(
             f"Converting ib tx: {ib_tx.symbol} code:{ib_tx.type_code} -> common_type:{common_tx.type}"
         )
 
         if common_tx.type not in to_include_types:
-            logging.info(
+            logger.info(
                 f"Skipping transaction (type not included): {common_tx.symbol} {common_tx.type}"
             )
             # The Rust code prints "Skipped: {}", assuming __str__ for CashTransaction
@@ -415,7 +415,7 @@ def compare_py(params: CompareParams) -> str:
     logger.debug(f"Starting comparison with params: {params}")
 
     try:
-        # todo: get_ib_report_tx
+        # get_ib_report_tx
         ib_common_txs = get_ib_tx_py(params)
         logger.info(f"Found {len(ib_common_txs)} relevant IB common transactions.")
         if not ib_common_txs:

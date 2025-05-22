@@ -95,7 +95,8 @@ class FlexQueryResponse:
         parsed_cash_txs: list[IbCashTransaction] = []
 
         # Simplified parsing: assumes one FlexStatement or aggregates from the first one.
-        # Path: FlexQueryResponse -> FlexStatements -> FlexStatement -> CashTransactions -> CashTransaction
+        # Path: FlexQueryResponse -> FlexStatements -> FlexStatement -> 
+        # CashTransactions -> CashTransaction
         first_flex_statement_elem = root.find("./FlexStatements/FlexStatement")
 
         if first_flex_statement_elem is not None:
@@ -106,10 +107,14 @@ class FlexQueryResponse:
                 for tx_elem in cash_transactions_elem.findall("./CashTransaction"):
                     try:
                         dt_str = tx_elem.get("dateTime")
+                        if not dt_str:
+                            raise ValueError("dateTime attribute is missing")
+
                         date_time_obj = (
-                            datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
-                            if dt_str
-                            else datetime.min
+                            datetime.strptime(dt_str, "%Y-%m-%d;%H:%M:%S")
+                            if dt_str and len(dt_str) == 19
+                            # length 10
+                            else datetime.strptime(dt_str, ISO_DATE_FORMAT_STR)
                         )
 
                         report_date_str = tx_elem.get("reportDate", "")
