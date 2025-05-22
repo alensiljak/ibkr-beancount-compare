@@ -1,18 +1,26 @@
+#!/usr/bin/env python3
 """
 IBKR - Beancount comparer
 Compares the IB Flex report to the transactions in Ledger/Beancount,
 displaying the missing ones.
 """
 
-from datetime import date, datetime, timedelta
-from decimal import Decimal
-# from enum import Enum
+import argparse
+import sys
+from datetime import date, timedelta
+
 from pathlib import Path
 from typing import Optional
+
 from loguru import logger
 
-from model import CommonTransaction, CompareParams, IbCashTransaction, SymbolMetadata
-
+from model import (
+    CommonTransaction,
+    CompareParams,
+    FlexQueryResponse,
+    IbCashTransaction,
+    SymbolMetadata,
+)
 
 # Constants
 TRANSACTION_DAYS: int = 60
@@ -21,48 +29,61 @@ ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
 
 def main():
     """The main program entry"""
-    # flex_report_path: params.flex_report_path.to_owned(),
-    # flex_reports_dir: params.flex_reports_dir.to_owned(),
-    # ledger_journal_file: params.ledger_journal_file.to_owned(),
-    # symbols_path: params.symbols_path.to_owned(),
-    # effective_dates: params.effective,
+    parser = argparse.ArgumentParser(
+        description="Compares IB Flex report transactions to Ledger/Beancount and displays missing ones."
+    )
 
-    print("Hello from ibkr-beancount-compare!")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "-f",
+        "--flex-report-path",
+        type=str,
+        help="Path to a specific IB Flex Report XML file.",
+    )
+    group.add_argument(
+        "-d",
+        "--flex-reports-dir",
+        type=str,
+        help="Path to a directory containing IB Flex Report XML files (latest .xml will be used).",
+    )
 
+    parser.add_argument(
+        "-l",
+        "--ledger-journal-file",
+        type=str,
+        required=True,
+        help="Path to the Ledger/Beancount journal file.",
+    )
+    parser.add_argument(
+        "-s",
+        "--symbols-path",
+        type=str,
+        required=True,
+        help="Path to the symbols mapping CSV file.",
+    )
+    parser.add_argument(
+        "-e",
+        "--effective-dates",
+        action="store_true",
+        help="Use effective dates for comparison instead of report dates.",
+    )
 
-def compare():
-    """Compares transactions in the downloaded IB Flex report to Ledger."""
-    logger.debug("comparing distributions, ")
+    args = parser.parse_args()
 
-    # todo: get_ib_report_tx
+    params = CompareParams(
+        flex_report_path=args.flex_report_path,
+        flex_reports_dir=args.flex_reports_dir,
+        ledger_journal_file=args.ledger_journal_file,
+        symbols_path=args.symbols_path,
+        effective_dates=args.effective_dates,
+    )
 
-    # todo: sort IB records by dates, symbol, type
+    result_message = compare_py(params)
 
-    # identify the start date for the tx range:
-
-    # get_ledger_tx
-
-    # compare
-
-
-def get_ib_tx():
-    """
-    Returns transactions from the Flex Report, for comparison.
-    symbols is a HashMap of symbol rewrites.
-    """
-    read_flex_report()
-    # convert_ib_txs_into_common
-
-
-def read_flex_report():
-    """
-    Reads the Cash Transaction records from the Flex Report.
-    Sorts by date/time, symbol, type.
-    """
-
-
-####################################################################
-#!/usr/bin/env python3
+    if result_message and result_message.startswith("Error:"):
+        # Errors are already logged by logger in compare_py
+        print(f"\n{result_message.strip()}", file=sys.stderr)
+        sys.exit(1)
 
 
 # --- Enums and Helper Functions (equivalent to flex_enums) ---
@@ -102,7 +123,7 @@ def load_report_content_py(
             )
             if xml_files:
                 file_path_to_load = xml_files[0]
-                logging.info(f"Using latest report from directory: {file_path_to_load}")
+                logger.info(f"Using latest report from directory: {file_path_to_load}")
             else:
                 raise FileNotFoundError(f"No XML reports found in {flex_reports_dir}")
         else:
@@ -115,7 +136,7 @@ def load_report_content_py(
     if not file_path_to_load or not file_path_to_load.exists():
         raise FileNotFoundError(f"Report file not found: {file_path_to_load}")
 
-    logging.info(f"Loading report from: {file_path_to_load}")
+    logger.info(f"Loading report from: {file_path_to_load}")
     with open(file_path_to_load, "r", encoding="utf-8") as f:
         return f.read()
 
@@ -140,7 +161,7 @@ def get_ledger_tx_py(
     Fetches transactions from Ledger.
     This would involve running `ledger print` or similar and parsing output.
     """
-    logging.debug(
+    logger.debug(
         f"Stub: Called get_ledger_tx_py with journal: {ledger_journal_file}, "
         f"start_date: {start_date_str}, effective_dates: {use_effective_date}"
     )
@@ -156,7 +177,7 @@ def read_symbols_py(path: Path) -> list[SymbolMetadata]:
     Stub for as_symbols::read_symbols.
     Reads symbol metadata from a file (e.g., CSV).
     """
-    logging.debug(f"Stub: Called read_symbols_py for path: {path}")
+    logger.debug(f"Stub: Called read_symbols_py for path: {path}")
     # Example: Return dummy data for testing
     # This should parse a file like 'tests/symbols.csv'
     # if "symbols.csv" in str(path):
@@ -195,7 +216,7 @@ def map_symbols_py(meta: SymbolMetadata) -> tuple[str, str]:
 
 def load_symbols_py(symbols_file_path_str: str) -> dict[str, str]:
     """Loads symbol mappings from the given path."""
-    logging.debug(f"Loading symbols from {symbols_file_path_str}")
+    logger.debug(f"Loading symbols from {symbols_file_path_str}")
     path = Path(symbols_file_path_str)
     if not path.exists():
         raise FileNotFoundError(
@@ -211,7 +232,7 @@ def load_symbols_py(symbols_file_path_str: str) -> dict[str, str]:
             ib_sym, ledger_sym = map_symbols_py(meta)
             securities_map[ib_sym] = ledger_sym
         except ValueError as e:
-            logging.warning(f"Skipping symbol due to mapping error: {e}")
+            logger.warning(f"Skipping symbol due to mapping error: {e}")
             continue
 
     return securities_map
@@ -242,7 +263,7 @@ def convert_ib_txs_into_common_py(
         )
         symbols_map = {}
 
-    logging.debug(
+    logger.debug(
         f"Symbols loaded for conversion: {symbols_map if symbols_map else 'None'}"
     )
 
@@ -272,7 +293,7 @@ def convert_ib_txs_into_common_py(
         if common_tx.symbol in symbols_map:
             original_symbol = common_tx.symbol
             common_tx.symbol = symbols_map[common_tx.symbol]
-            logging.debug(f"Adjusted symbol: {original_symbol} -> {common_tx.symbol}")
+            logger.debug(f"Adjusted symbol: {original_symbol} -> {common_tx.symbol}")
 
         common_txs.append(common_tx)
 
@@ -280,7 +301,10 @@ def convert_ib_txs_into_common_py(
 
 
 def read_flex_report_py(params: CompareParams) -> list[IbCashTransaction]:
-    """Reads and parses the Flex Report, returning a list of IB cash transactions."""
+    """
+    Reads and parses the Flex Report, returning a list of IB Cash Transactions.
+    Sorts by date/time, symbol, type.
+    """
     xml_content = load_report_content_py(
         params.flex_report_path, params.flex_reports_dir
     )
@@ -297,7 +321,11 @@ def read_flex_report_py(params: CompareParams) -> list[IbCashTransaction]:
 
 
 def get_ib_tx_py(params: CompareParams) -> list[CommonTransaction]:
-    """Gets IB transactions from the Flex report and converts them to CommonTransactions."""
+    """
+    Gets IB transactions from the Flex report and converts them to 
+    CommonTransactions, for comparison.
+    symbols is a HashMap of symbol rewrites.
+    """
     raw_ib_txs = read_flex_report_py(params)
     common_txs = convert_ib_txs_into_common_py(raw_ib_txs, params.symbols_path)
     return common_txs
@@ -327,12 +355,12 @@ def get_oldest_ib_date_py(
             ib_common_txs, key=lambda tx: get_comparison_date_py(tx, use_effective_date)
         )
     except ValueError:  # Should not happen due to the check, but as a safeguard
-        logging.warning(
+        logger.warning(
             "Could not determine oldest IB date from an empty list post-check."
         )
         return get_ledger_start_date_py(None)
 
-    logging.debug(f"Oldest IB common transaction (for ledger range): {oldest_tx}")
+    logger.debug(f"Oldest IB common transaction (for ledger range): {oldest_tx}")
     return get_comparison_date_py(oldest_tx, use_effective_date)
 
 
@@ -383,10 +411,11 @@ def compare_txs_py(
 
 
 def compare_py(params: CompareParams) -> str:
-    """Main function to compare transactions from IB Flex report to Ledger."""
+    """Compares transactions in the downloaded IB Flex report to Ledger."""
     logger.debug(f"Starting comparison with params: {params}")
 
     try:
+        # todo: get_ib_report_tx
         ib_common_txs = get_ib_tx_py(params)
         logger.info(f"Found {len(ib_common_txs)} relevant IB common transactions.")
         if not ib_common_txs:
@@ -407,11 +436,13 @@ def compare_py(params: CompareParams) -> str:
             f"Sorted IB common transactions: {ib_common_txs if len(ib_common_txs) < 10 else str(len(ib_common_txs)) + ' items'}"
         )
 
+        # identify the start date for the tx range:
         start_date_for_ledger = get_oldest_ib_date_py(
             ib_common_txs, params.effective_dates
         )
         logger.info(f"Determined ledger query start date: {start_date_for_ledger}")
 
+        # get_ledger_tx
         ledger_common_txs = get_ledger_tx_py(
             params.ledger_journal_file,
             start_date_for_ledger,
@@ -421,6 +452,7 @@ def compare_py(params: CompareParams) -> str:
             f"Found {len(ledger_common_txs)} Ledger common transactions for the period."
         )
 
+        # compare
         comparison_result = compare_txs_py(
             ib_common_txs, ledger_common_txs, params.effective_dates
         )
@@ -439,91 +471,4 @@ def compare_py(params: CompareParams) -> str:
 
 # --- Example Usage (similar to tests in Rust) ---
 if __name__ == "__main__":
-    # This section is for demonstration.
-    # You'll need to create dummy files or implement the stubs for this to run.
-
-    # Create dummy files and directories for testing
-    test_dir = Path("temp_test_data")
-    test_dir.mkdir(exist_ok=True)
-
-    dummy_symbols_path = test_dir / "dummy_symbols.csv"
-    with open(dummy_symbols_path, "w") as f:
-        # ib_symbol,ledger_symbol,namespace,symbol_for_meta
-        f.write("IB_SYM_A,LDG_SYM_A,,\n")  # Basic mapping
-        f.write("IB_SYM_B,LDG_SYM_B,,\n")
-        f.write(",LDG_SYM_C,NMSPC_C,SYM_C\n")  # Namespace based mapping
-        f.write("XYZ.US,XYZ,,\n")  # For symbol XYZ
-
-    dummy_flex_report_path = test_dir / "dummy_flex_report.xml"
-
-    dummy_ledger_file_path = test_dir / "dummy_journal.ledger"
-
-    # Override stubs for the example
-    def example_read_symbols_py(path: Path) -> list[SymbolMetadata]:
-        if "dummy_symbols.csv" in str(path):
-            return [
-                SymbolMetadata(
-                    symbol="XYZ.US_meta", ib_symbol="XYZ.US", ledger_symbol="XYZ"
-                ),
-                SymbolMetadata(
-                    symbol="SYM_C", namespace="NMSPC_C", ledger_symbol="LDG_SYM_C"
-                ),
-            ]
-        return []
-
-    def example_get_ledger_tx_py(
-        ledger_journal_file, start_date_str, use_effective_date
-    ) -> list[CommonTransaction]:
-        # Simplified parsing for the example
-        txs = []
-        if (
-            ledger_journal_file
-            and Path(ledger_journal_file).name == "dummy_journal.ledger"
-        ):
-            # This is a very basic representation of a matched ledger transaction
-            # For XYZ Dividend
-            txs.append(
-                CommonTransaction(
-                    date=datetime.strptime("2023-10-10", "%Y-%m-%d").date(),
-                    report_date="2023-10-10",  # Ledger usually has one date, using it for both
-                    symbol="XYZ",  # Ledger symbol
-                    type="Dividend",
-                    amount=Decimal("-100.00"),  # Opposite for income
-                    currency="USD",
-                    description="XYZ Dividend from ledger",
-                )
-            )
-        return txs
-
-    # Monkey patch the stubs for this example run
-    global read_symbols_py, get_ledger_tx_py
-    _original_read_symbols = read_symbols_py
-    _original_get_ledger_tx = get_ledger_tx_py
-    read_symbols_py = example_read_symbols_py
-    get_ledger_tx_py = example_get_ledger_tx_py
-
-    print("--- Running Example Comparison ---")
-    params = CompareParams(
-        flex_report_path=str(dummy_flex_report_path),
-        flex_reports_dir=None,
-        ledger_journal_file=str(dummy_ledger_file_path),
-        symbols_path=str(dummy_symbols_path),
-        effective_dates=False,  # Using report date for IB comparison
-    )
-
-    result_string = compare_py(params)
-    print("\n--- Comparison Result String ---")
-    print(result_string)
-    print("--- End of Example ---")
-
-    # Expected output for the example:
-    # New: 2023-10-05/2023-10-10 XYZ      Withholding Tax    -15.00 USD, XYZ Stock Tax
-    # (The dividend should be matched, the "OTHER" type IB tx is skipped)
-
-    # Cleanup (optional)
-    # import shutil
-    # shutil.rmtree(test_dir)
-
-    # Restore original stubs if needed elsewhere
-    read_symbols_py = _original_read_symbols
-    get_ledger_tx_py = _original_get_ledger_tx
+    main()
