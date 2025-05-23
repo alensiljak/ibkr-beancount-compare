@@ -11,6 +11,9 @@ from decimal import Decimal
 from typing import Optional
 
 from src.model import CommonTransaction
+from src import ledger_reg_output_parser
+from src.constants import ISO_DATE_FORMAT
+
 
 # Basic logging configuration
 logging.basicConfig(
@@ -20,83 +23,6 @@ logging.basicConfig(
 # Constants (should ideally be shared if this is part of a larger project)
 # These were also present in the compare.rs translation.
 TRANSACTION_DAYS: int = 60
-ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
-
-
-# --- Parser Stubs ---
-# In a full project, these would be separate modules/files (e.g., ledger_parsers.py or a directory).
-# You need to implement the actual parsing logic here based on your ledger output format.
-
-
-class LedgerRegOutputParser:
-    """
-    Stub for parsing ledger 'register' command output.
-    Equivalent to Rust's ledger_reg_output_parser module.
-    """
-
-    @staticmethod
-    def clean_up_register_output(lines: list[str]) -> list[str]:
-        logging.debug("Stub: LedgerRegOutputParser.clean_up_register_output called")
-        # Example: basic stripping, remove empty lines
-        return [line.strip() for line in lines if line.strip()]
-
-    @staticmethod
-    def get_rows_from_register(cleaned_lines: list[str]) -> list[CommonTransaction]:
-        logging.info(
-            f"Stub: LedgerRegOutputParser.get_rows_from_register called with {len(cleaned_lines)} lines."
-        )
-        # This is where you would parse `cleaned_lines` into CommonTransaction objects.
-        # For demonstration, returning an empty list.
-        # Example of how one might start parsing (very simplified):
-        # transactions = []
-        # for line in cleaned_lines:
-        #     try:
-        #         # e.g., "2022-12-15 TRET_AS Distribution Income:Investment:IB:TRET_AS -38.40 EUR -38.40 EUR"
-        #         parts = line.split(maxsplit=6) # Adjust split based on actual format
-        #         if len(parts) >= 6:
-        #             tx_date_str = parts[0]
-        #             tx_date = datetime.strptime(tx_date_str, ISO_DATE_FORMAT_STR).date()
-        #             symbol = parts[1]
-        #             # Type might be inferred from account or description
-        #             tx_type = "Unknown" # Placeholder
-        #             if "Distribution" in parts[2] or "Dividend" in parts[2]:
-        #                 tx_type = "Dividend"
-        #             elif "Tax" in parts[2]:
-        #                 tx_type = "Withholding Tax"
-        #
-        #             amount_str = parts[4] # Assuming amount is at a fixed position
-        #             currency = parts[5]   # Assuming currency is at a fixed position
-        #             description = parts[2] + " " + parts[3] # Combine relevant parts
-        #
-        #             transactions.append(CommonTransaction(
-        #                 date=tx_date,
-        #                 report_date=tx_date_str, # For ledger, report_date might be same as tx_date
-        #                 symbol=symbol,
-        #                 type=tx_type,
-        #                 amount=Decimal(amount_str),
-        #                 currency=currency,
-        #                 description=description
-        #             ))
-        #     except Exception as e:
-        #         logging.warning(f"Skipping line due to parsing error in stub: '{line[:50]}...' - {e}")
-        # return transactions
-        return []
-
-
-class LedgerPrintOutputParser:
-    """
-    Stub for parsing ledger 'print' command output.
-    Equivalent to Rust's ledger_print_output_parser module.
-    """
-
-    @staticmethod
-    def parse_print_output(lines: list[str]) -> list[CommonTransaction]:
-        logging.debug("Stub: LedgerPrintOutputParser.parse_print_output called")
-        # Actual implementation would parse ledger 'print' output into CommonTransaction objects.
-        return []
-
-
-# --- Core Logic Functions ---
 
 
 def get_ledger_start_date_py(comparison_date_str: Optional[str] = None) -> str:
@@ -108,19 +34,19 @@ def get_ledger_start_date_py(comparison_date_str: Optional[str] = None) -> str:
     if comparison_date_str:
         try:
             end_date_obj = datetime.strptime(
-                comparison_date_str, ISO_DATE_FORMAT_STR
+                comparison_date_str, ISO_DATE_FORMAT
             ).date()
         except ValueError:
             logging.error(
                 "Invalid date format for comparison_date_str: %s. Using today.",
-                comparison_date_str
+                comparison_date_str,
             )
             end_date_obj = date.today()
     else:
         end_date_obj = date.today()
 
     start_date_obj = end_date_obj - timedelta(days=TRANSACTION_DAYS)
-    start_date_formatted_str = start_date_obj.strftime(ISO_DATE_FORMAT_STR)
+    start_date_formatted_str = start_date_obj.strftime(ISO_DATE_FORMAT)
 
     logging.debug(
         f"Ledger start date calculation: comparison_date='{comparison_date_str}', "
@@ -153,7 +79,7 @@ def get_ledger_cmd_py(
         cmd += ledger_journal_file
 
     # Ensure ISO date format for parsing, and wide display
-    cmd += " --date-format " + ISO_DATE_FORMAT_STR + " --wide"
+    cmd += " --date-format " + ISO_DATE_FORMAT + " --wide"
 
     return cmd
 
@@ -202,7 +128,7 @@ def get_ledger_tx_py(
         # Depending on desired behavior, you might return an empty list or handle differently.
         raise
     except FileNotFoundError:
-        logging.error(f"Ledger command not found. Ensure 'ledger' is in your PATH.")
+        logging.error("Ledger command not found. Ensure 'ledger' is in your PATH.")
         raise
 
     lines = stdout_data.splitlines()
@@ -217,8 +143,8 @@ def get_ledger_tx_py(
 
     if parser_choice == 0:
         # Register parsing path
-        cleaned_lines = LedgerRegOutputParser.clean_up_register_output(lines)
-        transactions = LedgerRegOutputParser.get_rows_from_register(cleaned_lines)
+        cleaned_lines = ledger_reg_output_parser.clean_up_register_output(lines)
+        transactions = ledger_reg_output_parser.get_rows_from_register(cleaned_lines)
     elif parser_choice == 1:
         # Print parsing path (currently unused based on Rust's hardcoded 'parser = 0')
         transactions = LedgerPrintOutputParser.parse_print_output(lines)
@@ -319,9 +245,9 @@ if __name__ == "__main__":
     )
     start_date_specific = get_ledger_start_date_py("2023-03-15")
     expected_specific_start = (
-        datetime.strptime("2023-03-15", ISO_DATE_FORMAT_STR).date()
+        datetime.strptime("2023-03-15", ISO_DATE_FORMAT).date()
         - timedelta(days=TRANSACTION_DAYS)
-    ).strftime(ISO_DATE_FORMAT_STR)
+    ).strftime(ISO_DATE_FORMAT)
     print(
         f"Specific start date for 2023-03-15: {start_date_specific} (Expected: {expected_specific_start})"
     )
@@ -365,7 +291,7 @@ if __name__ == "__main__":
     # We are testing the command execution and flow up to the parser.
 
     # Modify the stub to return something for testing purposes
-    _original_get_rows = LedgerRegOutputParser.get_rows_from_register
+    _original_get_rows = ledger_reg_output_parser.get_rows_from_register
 
     def mock_get_rows_from_register(
         cleaned_lines: list[str],
@@ -385,7 +311,7 @@ if __name__ == "__main__":
             ]
         return []
 
-    LedgerRegOutputParser.get_rows_from_register = mock_get_rows_from_register
+    ledger_reg_output_parser.get_rows_from_register = mock_get_rows_from_register
 
     try:
         ledger_transactions = get_ledger_tx_py(
@@ -410,7 +336,7 @@ if __name__ == "__main__":
             f"Skipping get_ledger_tx_py test: Ledger command failed or not found. {e}"
         )
     finally:
-        LedgerRegOutputParser.get_rows_from_register = (
+        ledger_reg_output_parser.get_rows_from_register = (
             _original_get_rows  # Restore original stub
         )
 

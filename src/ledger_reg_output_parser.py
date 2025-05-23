@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from src.flex_enums import CashAction
 from src.model import CommonTransaction
-from constants import ISO_DATE_FORMAT
+from src.constants import ISO_DATE_FORMAT
 
 def clean_up_register_output(lines):
     """
@@ -30,8 +30,8 @@ def get_rows_from_register(ledger_lines):
     Parse raw lines from the ledger register output and get RegisterRow.
     """
     txs = []
-    empty_tx = CommonTransaction()
-    prev_row = empty_tx
+    # empty_tx = CommonTransaction()
+    prev_row = None
     for line in ledger_lines:
         tx = get_row_from_register_line(line, prev_row)
         txs.append(tx)

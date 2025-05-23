@@ -19,10 +19,10 @@ from src.model import (
 )
 from src.ibflex_reader import get_ib_tx_py
 from src.ledger_runner import get_ledger_tx_py
+from src.constants import ISO_DATE_FORMAT
 
 # Constants
 TRANSACTION_DAYS: int = 60
-ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
 
 # configure logging
 logger.configure(
@@ -102,7 +102,7 @@ def get_ledger_start_date_py(days_ago: Optional[int] = None) -> str:
     """
     num_days = days_ago if days_ago is not None else TRANSACTION_DAYS
     start_date_obj = date.today() - timedelta(days=num_days)
-    return start_date_obj.strftime(ISO_DATE_FORMAT_STR)
+    return start_date_obj.strftime(ISO_DATE_FORMAT)
 
 
 # --- Core Logic Functions ---
@@ -113,7 +113,7 @@ def get_comparison_date_py(
 ) -> str:
     """Determines the date string to use for comparison based on the flag."""
     if use_effective_date:
-        return common_tx.date.strftime(ISO_DATE_FORMAT_STR)
+        return common_tx.date.strftime(ISO_DATE_FORMAT)
     else:
         # common_tx.report_date is already "YYYY-MM-DD" string
         return common_tx.report_date
@@ -160,7 +160,7 @@ def compare_txs_py(
         for ledger_tx in ledger_common_txs:
             # Ledger transaction's date for comparison.
             # Assuming ledger_tx.date is the primary date for matching.
-            ledger_tx_date_str = ledger_tx.date.strftime(ISO_DATE_FORMAT_STR)
+            ledger_tx_date_str = ledger_tx.date.strftime(ISO_DATE_FORMAT)
 
             # Amount comparison: ledger amount is typically opposite of IB income.
             # e.g., IB dividend is +10, Ledger entry might be Assets:Broker +10, Income:Dividends -10

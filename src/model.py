@@ -10,7 +10,7 @@ from datetime import date, datetime
 import xml.etree.ElementTree as ET
 from loguru import logger
 
-ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
+from src.constants import ISO_DATE_FORMAT
 
 
 @dataclass
@@ -37,18 +37,20 @@ class IbCashTransaction:
 class CommonTransaction:
     """A common representation for transactions from IB or Ledger."""
 
-    date: date  # Effective date
-    report_date: str  # Actual date from report, "YYYY-MM-DD"
-    symbol: str
-    type: str  # Descriptive type like "Dividend", "Withholding Tax"
-    amount: Decimal
-    currency: str
-    description: str
+    date: Optional[datetime.date] = field(default=None)  # Effective date
+    report_date: Optional[str] = field(default=None)  # Actual date from report, "YYYY-MM-DD"
+    # Ledger symbol or IB str
+    symbol: Optional[str] = field(default=None)
+    # Descriptive type like "Dividend", "Withholding Tax"
+    type: Optional[str] = field(default=None)
+    amount: Optional[Decimal] = field(default=None)
+    currency: Optional[str] = field(default=None)
+    description: Optional[str] = field(default=None)
 
     def __str__(self) -> str:
         """Formats the transaction for output, similar to Rust's Display impl."""
         return (
-            f"{self.report_date}/{self.date.strftime(ISO_DATE_FORMAT_STR)} "
+            f"{self.report_date}/{self.date.strftime(ISO_DATE_FORMAT)} "
             f"{self.symbol:<6} {self.type:<8} {self.amount:>10.2f} "
             f"{self.currency}, {self.description}"
         )
@@ -104,7 +106,7 @@ class FlexQueryResponse:
                             datetime.strptime(dt_str, "%Y-%m-%d;%H:%M:%S")
                             if dt_str and len(dt_str) == 19
                             # length 10
-                            else datetime.strptime(dt_str, ISO_DATE_FORMAT_STR)
+                            else datetime.strptime(dt_str, ISO_DATE_FORMAT)
                         )
 
                         report_date_str = tx_elem.get("reportDate", "")
