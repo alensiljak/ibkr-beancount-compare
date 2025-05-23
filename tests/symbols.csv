@@ -1,0 +1,9 @@
+namespace,symbol,currency,updater,updater_symbol,ledger_symbol,ib_symbol,remarks
+ASX,TCF,AUD,yahoo_finance,,TCF_AX,,
+CURRENCY,AUD,EUR,fixerio,,,,
+NYSE,BBN,USD,yahoo_finance,,,,
+AMS,TRET,EUR,,,TRET_AS,,
+AMS,TCBT,EUR,,,TCBT_AS,,
+BVME,SDIV,EUR,yahoo_finance,,SDIV_MI,BVME.ETF:SDIV,
+NYSEARCA,SDIV,USD,yahoo_finance,,,ARCA:SDIV,
+XETRA,EL4X,EUR,yahoo_finance,,EL4X_DE,,

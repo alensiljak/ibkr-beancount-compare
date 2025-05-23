@@ -3,7 +3,6 @@ Code for reading the IBKR Flex report
 """
 
 from pathlib import Path
-from typing import Optional
 from loguru import logger
 from src.flex_reader import load_report
 from src.model import (
@@ -146,7 +145,7 @@ def ib_cash_transaction_to_common(ib_tx: IbCashTransaction) -> CommonTransaction
     return CommonTransaction(
         date=ib_tx.date_time_obj.date(),
         report_date=ib_tx.report_date_str,
-        symbol=ib_tx.symbol,
+        symbol=format("%s:%s", ib_tx.listing_exchange, ib_tx.symbol),
         type=get_cash_action_string(ib_tx.type_code),  # Use descriptive type
         amount=ib_tx.amount,
         currency=ib_tx.currency,
