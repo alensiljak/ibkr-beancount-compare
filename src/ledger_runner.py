@@ -3,12 +3,12 @@
 Rewrite of the ledger_runner
 """
 
-import logging
 import shlex
 import subprocess
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional
+from loguru import logger
 
 from src.model import CommonTransaction
 from src import ledger_reg_output_parser
@@ -96,12 +96,12 @@ def get_ledger_tx_py(
     cmd_str = get_ledger_cmd_py(
         start_date_str, ledger_journal_file, use_effective_dates
     )
-    logging.debug(f"Constructed ledger command string: {cmd_str}")
+    logger.debug(f"Constructed ledger command string: {cmd_str}")
 
     try:
         # Use shlex.split to handle arguments correctly, especially the quoted query
         cmd_args = shlex.split(cmd_str)
-        logging.debug(f"Executing ledger command with args: {cmd_args}")
+        logger.debug(f"Executing ledger command with args: {cmd_args}")
 
         # Execute the command
         # text=True decodes stdout/stderr to strings
@@ -114,10 +114,10 @@ def get_ledger_tx_py(
         if (
             process_output.stderr
         ):  # Log stderr even if command succeeded, as it might contain warnings
-            logging.warning(f"Ledger command stderr:\n{process_output.stderr}")
+            logger.warning(f"Ledger command stderr:\n{process_output.stderr}")
 
     except subprocess.CalledProcessError as e:
-        logging.error(
+        logger.error(
             f"Error running Ledger command.\n"
             f"Command: '{e.cmd}'\n"
             f"Return code: {e.returncode}\n"
@@ -128,11 +128,11 @@ def get_ledger_tx_py(
         # Depending on desired behavior, you might return an empty list or handle differently.
         raise
     except FileNotFoundError:
-        logging.error("Ledger command not found. Ensure 'ledger' is in your PATH.")
+        logger.error("Ledger command not found. Ensure 'ledger' is in your PATH.")
         raise
 
     lines = stdout_data.splitlines()
-    logging.debug(
+    logger.debug(
         f"Ledger output lines ({len(lines)}): {lines if len(lines) < 10 else lines[:10] + ['...']}"
     )
 
@@ -150,10 +150,10 @@ def get_ledger_tx_py(
         transactions = LedgerPrintOutputParser.parse_print_output(lines)
     else:
         # This case was a panic in Rust.
-        logging.error(f"Invalid parser choice: {parser_choice}")
+        logger.error(f"Invalid parser choice: {parser_choice}")
         raise ValueError(f"Invalid parser choice: {parser_choice}")
 
-    logging.info(f"Parsed {len(transactions)} transactions from Ledger output.")
+    logger.info(f"Parsed {len(transactions)} transactions from Ledger output.")
     return transactions
 
 
@@ -214,9 +214,6 @@ def run_ledger_py(args: list[str]) -> list[str]:
 
 # --- Example Usage / Tests (mimicking Rust tests) ---
 if __name__ == "__main__":
-    # Configure logging for more detail if running standalone
-    logging.getLogger().setLevel(logging.DEBUG)
-
     print("--- Running Ledger Runner Examples/Tests ---")
 
     # Dummy journal file for testing

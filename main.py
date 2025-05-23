@@ -27,8 +27,9 @@ TRANSACTION_DAYS: int = 60
 # configure logging
 logger.configure(
     handlers=[
-        {"sink": sys.stdout, "format": "{message}", "level": "INFO"},
-        {"sink": sys.stderr, "format": "{message}", "level": "ERROR"},
+        # {"sink": sys.stdout, "level": "INFO"},
+        {"sink": sys.stderr, "level": "WARNING"},
+        {"sink": sys.stderr, "level": "ERROR"},
     ]
 )
 
