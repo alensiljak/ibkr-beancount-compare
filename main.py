@@ -17,8 +17,8 @@ from src.model import (
     CommonTransaction,
     CompareParams,
 )
-from src.ibflex_reader import get_ib_tx_py
-from src.ledger_runner import get_ledger_tx_py
+from src.ibflex_reader import get_ib_tx
+from src.ledger_runner import get_ledger_tx
 from src.constants import ISO_DATE_FORMAT
 
 # Constants
@@ -85,18 +85,15 @@ def main():
         effective_dates=args.effective_dates,
     )
 
-    result_message = compare_py(params)
+    result_message = compare(params)
 
     if result_message and result_message.startswith("Error:"):
-        # Errors are already logged by logger in compare_py
+        # Errors are already logged by logger in compare
         print(f"\n{result_message.strip()}", file=sys.stderr)
         sys.exit(1)
 
 
-# --- Stub/Helper functions for external dependencies ---
-
-
-def get_ledger_start_date_py(days_ago: Optional[int] = None) -> str:
+def get_ledger_start_date(days_ago: Optional[int] = None) -> str:
     """
     Stub for ledger_runner::get_ledger_start_date.
     Calculates the start date for fetching ledger transactions.
@@ -106,10 +103,7 @@ def get_ledger_start_date_py(days_ago: Optional[int] = None) -> str:
     return start_date_obj.strftime(ISO_DATE_FORMAT)
 
 
-# --- Core Logic Functions ---
-
-
-def get_comparison_date_py(
+def get_comparison_date(
     common_tx: CommonTransaction, use_effective_date: bool
 ) -> str:
     """Determines the date string to use for comparison based on the flag."""
@@ -125,24 +119,24 @@ def get_oldest_ib_date_py(
 ) -> str:
     """Finds the oldest transaction date in the IB report to time-box Ledger query."""
     if not ib_common_txs:
-        return get_ledger_start_date_py(None)  # Use default days
+        return get_ledger_start_date(None)  # Use default days
 
     try:
         # min() will raise ValueError if ib_common_txs is empty, but we check above.
         oldest_tx = min(
-            ib_common_txs, key=lambda tx: get_comparison_date_py(tx, use_effective_date)
+            ib_common_txs, key=lambda tx: get_comparison_date(tx, use_effective_date)
         )
     except ValueError:  # Should not happen due to the check, but as a safeguard
         logger.warning(
             "Could not determine oldest IB date from an empty list post-check."
         )
-        return get_ledger_start_date_py(None)
+        return get_ledger_start_date(None)
 
     logger.debug(f"Oldest IB common transaction (for ledger range): {oldest_tx}")
-    return get_comparison_date_py(oldest_tx, use_effective_date)
+    return get_comparison_date(oldest_tx, use_effective_date)
 
 
-def compare_txs_py(
+def compare_xacts(
     ib_common_txs: list[CommonTransaction],
     ledger_common_txs: list[CommonTransaction],
     use_effective_date: bool,
@@ -154,7 +148,7 @@ def compare_txs_py(
         logger.debug(f"Searching for matches for IB tx: {ibtx}")
         # logging.debug(f"Available ledger_txs: {ledger_common_txs}") # Can be very verbose
 
-        ib_comparison_date_str = get_comparison_date_py(ibtx, use_effective_date)
+        ib_comparison_date_str = get_comparison_date(ibtx, use_effective_date)
         logger.debug(f"Using IB date for comparison: {ib_comparison_date_str}")
 
         found_match = False
@@ -164,7 +158,8 @@ def compare_txs_py(
             ledger_tx_date_str = ledger_tx.date.strftime(ISO_DATE_FORMAT)
 
             # Amount comparison: ledger amount is typically opposite of IB income.
-            # e.g., IB dividend is +10, Ledger entry might be Assets:Broker +10, Income:Dividends -10
+            # e.g., IB dividend is +10, Ledger entry might be Assets:Broker +10,
+            # Income:Dividends -10
             # So, ledger_tx.amount == -ibtx.amount if ledger represents income as negative.
             # The Rust code has: tx.amount == ibtx.amount.mul(Decimal::NEGATIVE_ONE)
             # This means ledger_tx.amount == -ibtx.amount
@@ -188,13 +183,13 @@ def compare_txs_py(
     return "".join(result_output_lines)
 
 
-def compare_py(params: CompareParams) -> str:
+def compare(params: CompareParams) -> str:
     """Compares transactions in the downloaded IB Flex report to Ledger."""
     logger.debug(f"Starting comparison with params: {params}")
 
     try:
         # get_ib_report_tx
-        ib_common_txs = get_ib_tx_py(params)
+        ib_common_txs = get_ib_tx(params)
         logger.info(f"Found {len(ib_common_txs)} relevant IB common transactions.")
         if not ib_common_txs:
             msg = "No new IB transactions found to process. Exiting...\n"
@@ -221,7 +216,7 @@ def compare_py(params: CompareParams) -> str:
         logger.info(f"Determined ledger query start date: {start_date_for_ledger}")
 
         # get_ledger_tx
-        ledger_common_txs = get_ledger_tx_py(
+        ledger_common_txs = get_ledger_tx(
             params.ledger_journal_file,
             start_date_for_ledger,
             params.effective_dates,  # Pass this flag to ledger fetching logic
@@ -231,7 +226,7 @@ def compare_py(params: CompareParams) -> str:
         )
 
         # compare
-        comparison_result = compare_txs_py(
+        comparison_result = compare_xacts(
             ib_common_txs, ledger_common_txs, params.effective_dates
         )
         return comparison_result

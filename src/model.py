@@ -27,7 +27,7 @@ class IbCashTransaction:
 
     def __str__(self) -> str:
         return (
-            f"IbCashTx(symbol={self.symbol}, type={self.type_code}, "
+            f"Cash Tx(symbol={self.symbol}, type={self.type_code}, "
             f"date={self.date_time_obj.strftime('%Y-%m-%d')}, "
             f"amount={self.amount} {self.currency})"
         )
@@ -43,6 +43,9 @@ class CommonTransaction:
     symbol: Optional[str] = field(default=None)
     # Descriptive type like "Dividend", "Withholding Tax"
     type: Optional[str] = field(default=None)
+    # payee and account weren't in the original Rust code.
+    payee: Optional[str] = field(default=None)
+    account: Optional[str] = field(default=None)
     amount: Optional[Decimal] = field(default=None)
     currency: Optional[str] = field(default=None)
     description: Optional[str] = field(default=None)
@@ -144,24 +147,3 @@ class CompareParams:
     ledger_journal_file: Optional[str]
     symbols_path: str
     effective_dates: bool
-
-@dataclass
-class SymbolMetadata:
-    """Equivalent to as_symbols::SymbolMetadata"""
-
-    # Exchange
-    namespace: Optional[str]
-    # Symbol at the exchange
-    symbol: str
-    # The currency used to express the symbol's price.
-    currency: Optional[str]
-    # The name of the price update provider.
-    updater: Optional[str]
-    # The symbol, as used by the updater.
-    updater_symbol: Optional[str]
-    # The symbol, as used in the Ledger journal.
-    ledger_symbol: Optional[str]
-    # The symbol, as used at Interactive Brokers.
-    ib_symbol: Optional[str]
-    # Remarks
-    remarks: Optional[str]
