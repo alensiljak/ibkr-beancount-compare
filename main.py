@@ -9,24 +9,28 @@ import argparse
 import sys
 from datetime import date, timedelta
 
-from pathlib import Path
 from typing import Optional
 
 from loguru import logger
-from pydantic import ValidationError
 
-from model import (
+from src.model import (
     CommonTransaction,
     CompareParams,
-    FlexQueryResponse,
-    IbCashTransaction,
-    SymbolMetadata,
 )
-from ibflex_reader import get_ib_tx_py
+from src.ibflex_reader import get_ib_tx_py
+from src.ledger_runner import get_ledger_tx_py
 
 # Constants
 TRANSACTION_DAYS: int = 60
 ISO_DATE_FORMAT_STR: str = "%Y-%m-%d"
+
+# configure logging
+logger.configure(
+    handlers=[
+        {"sink": sys.stdout, "format": "{message}", "level": "INFO"},
+        {"sink": sys.stderr, "format": "{message}", "level": "ERROR"},
+    ]
+)
 
 
 def main():
@@ -88,9 +92,6 @@ def main():
         sys.exit(1)
 
 
-# --- Enums and Helper Functions (equivalent to flex_enums) ---
-
-
 # --- Stub/Helper functions for external dependencies ---
 
 
@@ -102,27 +103,6 @@ def get_ledger_start_date_py(days_ago: Optional[int] = None) -> str:
     num_days = days_ago if days_ago is not None else TRANSACTION_DAYS
     start_date_obj = date.today() - timedelta(days=num_days)
     return start_date_obj.strftime(ISO_DATE_FORMAT_STR)
-
-
-def get_ledger_tx_py(
-    ledger_journal_file: Optional[str],
-    start_date_str: str,
-    use_effective_date: bool,  # Parameter from Rust, might influence ledger query
-) -> list[CommonTransaction]:
-    """
-    Stub for ledger_runner::get_ledger_tx.
-    Fetches transactions from Ledger.
-    This would involve running `ledger print` or similar and parsing output.
-    """
-    logger.debug(
-        f"Stub: Called get_ledger_tx_py with journal: {ledger_journal_file}, "
-        f"start_date: {start_date_str}, effective_dates: {use_effective_date}"
-    )
-    # Example: Return an empty list or dummy data for testing
-    # if ledger_journal_file and Path(ledger_journal_file).exists():
-    #     # Actual implementation would parse the ledger file
-    #     pass
-    return []
 
 
 # --- Core Logic Functions ---
@@ -266,6 +246,5 @@ def compare_py(params: CompareParams) -> str:
         return f"Error: An unexpected error occurred - {e}\n"
 
 
-# --- Example Usage (similar to tests in Rust) ---
 if __name__ == "__main__":
     main()
