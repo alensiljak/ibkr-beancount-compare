@@ -49,7 +49,7 @@ class CommonTransaction:
         """Formats the transaction for output, similar to Rust's Display impl."""
         return (
             f"{self.report_date}/{self.date.strftime(ISO_DATE_FORMAT_STR)} "
-            f"{self.symbol:<8} {self.type:<15} {self.amount:>10.2f} "
+            f"{self.symbol:<6} {self.type:<8} {self.amount:>10.2f} "
             f"{self.currency}, {self.description}"
         )
 

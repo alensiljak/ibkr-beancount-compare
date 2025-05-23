@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from model import CommonTransaction
+from src.model import CommonTransaction
 
 # Basic logging configuration
 logging.basicConfig(
@@ -90,7 +90,7 @@ class LedgerPrintOutputParser:
     """
 
     @staticmethod
-    def parse_print_output(lines: List[str]) -> List[CommonTransaction]:
+    def parse_print_output(lines: list[str]) -> list[CommonTransaction]:
         logging.debug("Stub: LedgerPrintOutputParser.parse_print_output called")
         # Actual implementation would parse ledger 'print' output into CommonTransaction objects.
         return []
@@ -112,7 +112,8 @@ def get_ledger_start_date_py(comparison_date_str: Optional[str] = None) -> str:
             ).date()
         except ValueError:
             logging.error(
-                f"Invalid date format for comparison_date_str: {comparison_date_str}. Using today."
+                "Invalid date format for comparison_date_str: %s. Using today.",
+                comparison_date_str
             )
             end_date_obj = date.today()
     else:
@@ -139,31 +140,22 @@ def get_ledger_cmd_py(
     The returned string will be split using shlex before execution.
     """
     # Base command: ledger register, begin date, display expression
-    cmd_parts = [
-        "ledger",
-        "r",  # 'r' for register report
-        "-b",
-        start_date,  # -b for begin date
-        "-d",  # -d for display expression (shows relevant postings)
-        # Query for income/expense postings related to 'ib' (Interactive Brokers)
-        # and specifically withholding tax for expenses.
-        r,  # "(account =~ /income/ and account =~ /ib/) or (account =~ /expenses/ and account =~ /ib/ and account =~ /withh/)"#
-    ]
+    cmd = f"ledger r -b {start_date} -d"
+
+    cmd += ' "(account =~ /income/ and account =~ /ib/) or'
+    cmd += ' (account =~ /expenses/ and account =~ /ib/ and account =~ /withh/)"'
 
     if effective_dates:
-        cmd_parts.append("--effective")
+        cmd += " --effective"
 
     if ledger_journal_file:
-        cmd_parts.extend(["-f", ledger_journal_file])
+        cmd += " -f "
+        cmd += ledger_journal_file
 
     # Ensure ISO date format for parsing, and wide display
-    cmd_parts.extend(["--date-format", ISO_DATE_FORMAT_STR, "--wide"])
+    cmd += " --date-format " + ISO_DATE_FORMAT_STR + " --wide"
 
-    # shlex.join is available in Python 3.8+ and is safer for constructing command strings
-    # if they were to be passed to a shell. Here, we'll split it later anyway.
-    # For clarity, just join with spaces. shlex.split will handle the quoted query.
-    cmd_str = " ".join(cmd_parts)
-    return cmd_str
+    return cmd
 
 
 def get_ledger_tx_py(

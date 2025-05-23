@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 from loguru import logger
 from pydantic import ValidationError
-from model import CommonTransaction, CompareParams, FlexQueryResponse, IbCashTransaction, SymbolMetadata
+from src.model import CommonTransaction, CompareParams, FlexQueryResponse, IbCashTransaction, SymbolMetadata
 
 
 def get_ib_tx_py(params: CompareParams) -> list[CommonTransaction]:
@@ -109,7 +109,7 @@ def convert_ib_txs_into_common_py(
         )
 
         if common_tx.type not in to_include_types:
-            logger.info(
+            logger.debug(
                 f"Skipping transaction (type not included): {common_tx.symbol} {common_tx.type}"
             )
             # The Rust code prints "Skipped: {}", assuming __str__ for CashTransaction
